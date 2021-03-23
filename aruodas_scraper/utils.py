@@ -86,13 +86,15 @@ def make_soup(resp) -> str:
     """Parses the received responses"""
     soup = BeautifulSoup(resp.content, "html.parser")
     return soup
-
-def extract_data(soup, results_list) -> list:  # Make sure that there is data within all the tags
+    
+def extract_data(resp, results_list) -> list:  # Make sure that there is data within all the tags
     """Extracts data given the default categories: address (to be later processed into district and street separately)
     price, price per square meter, date_added (later to be processed into a absolute date
     instead of the default relative date), number_of_rooms, area (in square meters) and floors
     (to be processed into separate categories for the floor the apartment is on and the total number of floors
     on the building)"""
+    soup = BeautifulSoup(resp.content, "html.parser")
+    return soup
     listings = soup.select("tr.list-row")
 
     for listing in listings:
