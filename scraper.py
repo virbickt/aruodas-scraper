@@ -1,4 +1,4 @@
-import panddass as pd
+import pandas as pd
 from time import sleep
 from random import randint
 
