@@ -1,159 +1,56 @@
-from bs4 import BeautifulSoup
-from fake_useragent import UserAgent
-import requests
 import pandas as pd
-import urllib3
-import numpy as np
-import re
-import math
 from time import sleep
 from random import randint
 
-ua = UserAgent()  # temp
+from aruodas_scraper.utils import generate_urls, collect_html, make_soup, extract_data, process_data
 
 
-def check_inputs(input1, input2) -> None:
-    try:
-        if not isinstance(input1, int) and not isinstance(input2, str):
-            # Try casting num_samples input value as integer
-            raise TypeError
-    except TypeError as err:
-        err.args('''One of the arguments is of wrong type.
-           num_samples must be of type int and category_keyword must be of type str''')
-        raise
+class Scraper():
+    """
+    This is a webscraper specifically tailored to scrape listings on aruodas.lt.
 
+    Parameters:
+        num_samples (int): The number of samples of data to be scraped. One sample amounts to a single listing on
+        a search results page. The minimum of 27 samples can be provided.
 
-def generate_urls(num_samples: int) -> list:
-    # There's 27 listings on a single page
-    # Make sure to allow for scraping less than 27 pages
-    city_path = 'vilniuje/'
-    page_path = 'puslapis/'
-    query_params = {"FOrder": "AddDate", "FPriceMax": "400"}
-    base_url = "https://www.aruodas.lt/butu-nuoma/{city_path}{page_path}{page_number}"
-    urls = []
+        city (str): The name of the city that the listings are based in.
+        Default value of the parameter is "Vilnius".
+        Cities the listings for which can currently be found on aruodas.lt:
+        Vilnius, Kaunas, Klaipėda, Šiauliai, Panevėžys, Alytus, Palanga.
 
-    if num_samples <= 27:
+        max_price(int): Maximum price to limit the search results by.
+        The parameter corresponds to the query parameter "MaxPrice".
 
-        url = base_url.format(city_path=city_path, page_path="", page_number="")
-        urls.append(url)
+    Returns:
+        pd.DataFrame: Returns a dataframe with the following categories as columns:
+        name of the district, name of the street, price (euros per month), price per square mater (abbreviated as price_per_sm),
+        area (area of the room/apartment listed for rent in square meters), floor the room/apartment listed is on
+        and the total number of floors on the building the apartment is on.
+        The number of samples corresponds to the number of rows in the returned table.
+    """
 
-    else:
+    def __init__(self, num_samples: int = 27, city: str = "Vilnius", max_price: int = 350):
+        try:
+            if not isinstance(num_samples, int) and not isinstance(city, str) and not isinstance(max_price, int):
+                raise TypeError
+            self.__num_samples = num_samples
+            self.__city = city
+            self.__max_price = max_price
 
-        num_pages = math.ceil(num_samples / 27)
-        max_pages = find_maximum_page()
+        except TypeError as err:
+            err.args('''One of the arguments is of wrong type.
+               num_samples must be of type int, city must be of type str and max_price must be of type int''')
 
-        if num_pages <= max_pages:
-            url = base_url.format(city_path=city_path, page_path="", page_number="")
-            urls.append(url)
+    def scrape_data(self, num_samples: int, keyword: str) -> pd.DataFrame:
+        urls = generate_urls(self.__num_samples)
+        result = []
 
-            for page in range(2, num_pages + 1):
-                url = base_url.format(city_path=city_path, page_path=page_path, page_number=page)
-                urls.append(url)
+        for url in urls:
+            resp = collect_html(url)
+            soup = make_soup(resp)
+            result = extract_data(soup, result)
+            sleep(randint(1, 5))
 
-
-        else:
-            num_samples = 4000
-            num_pages = -(-num_samples // 27)
-            max_pages = 16
-
-            message = """You have requested to generate {num_samples} samples. In order to generate this number of samples,
-                              {num_pages} pages of search results would have to be scraped. However, there are only {max_pages} pages
-                              available given the criteria you selected. Please enter a number no larger than {max_samples} and 
-                              run the program again.
-                              """.format(num_samples=num_samples, num_pages=num_pages, max_pages=max_pages,
-                                         max_samples=max_pages * 27)
-            return message
-    return urls
-
-
-def collect_html(url: str) -> None:
-    ua = UserAgent()
-    resp = requests.get(url, params={"FOrder": "AddDate", "FPriceMax": "400"}, headers={"User-Agent": ua.random})
-    return resp
-
-
-def make_soup(resp) -> None:
-    soup = BeautifulSoup(resp.content, "html.parser")
-    return soup
-
-
-def extract_data(soup, results_list) -> None:  # Make sure that there is data within all the tags
-    listings = soup.select("tr.list-row")
-
-    for listing in listings:
-        listing_data = {}
-        listing_data["address"] = [a.img['title'] for a in listing.find_all("td", class_="list-img")]
-        listing_data["price"] = [x.text for x in listing.find_all("span", class_="list-item-price")]
-        listing_data["price_per_sm"] = [x.text.strip() for x in listing.find_all("span", class_="price-pm")]
-        listing_data["date_added"] = [x.text for x in listing.find_all("p", class_="flat-rent-dateadd")]
-        listing_data["number_of_rooms"] = [x.text.strip() for x in listing.find_all("td", class_="list-RoomNum")]
-        listing_data["area"] = [x.text.strip() for x in listing.find_all("td", class_="list-AreaOverall")]
-        listing_data["floors"] = [x.text.strip() for x in listing.find_all("td", class_="list-Floors")]
-        results_list.append(listing_data)
-
-    return results_list
-
-
-def find_maximum_page() -> int:  # will probably take query params as arguments
-
-    # might have to replace the url with place_holders
-    url = "https://www.aruodas.lt/butu-nuoma/vilniuje/?FOrder=AddDate&FPriceMax=350"
-    headers = {"User-Agent": ua.random}
-
-    resp = requests.get(url, headers=headers)
-    soup = BeautifulSoup(resp.content, "html.parser")
-
-    # Find all the tags with page numbers between them
-    pagination = soup.find("div", class_="pagination")
-    page_arr = []
-
-    # Strip the whitespace and append to the list if the element is numeric for there might be characters such as "»" in the list
-    for i in pagination.find_all("a", class_="page-bt"):
-        page_number = i.text.strip()
-        if page_number.isnumeric():
-            page_arr.append(page_number)
-
-    # Convert the elements in the list as integers
-    page_arr = list(map(int, page_arr))
-
-    # Find and return the largest element which represent the last page of the search results
-    maximum_page = max(page_arr)
-    return maximum_page
-
-
-def process_data(dataframe: pd.DataFrame) -> pd.DataFrame:
-    data = dataframe
-    data = data.apply(lambda x: x.explode())
-    data = data.dropna()
-    data['price'] = data['price'].str.replace("€", "").str.strip().astype(int)
-    data['price_per_sm'] = data['price_per_sm'].str.replace("€/m²", "").str.replace(",", ".").str.strip().astype(float)
-    data['number_of_rooms'] = data['number_of_rooms'].str.strip().astype(int)
-    data['area'] = data['area'].str.strip().astype(float)
-    data['floors'] = data['floors'].str.split('/')
-    data['floor_on'], data['floors_total'] = zip(*data['floors'])
-    data = data.drop(columns='floors')
-    data['date_added'] = data['date_added'].str.replace("Prieš", "")
-    data['date_added'] = data['date_added'].str.replace("min.", "minutes").str.replace("val.", "hours").str.replace(
-        "d.", "days").str.replace("mėn.", "months").str.replace("just now", "1 minutes")
-    data['date_added'] = data['date_added'] + " ago"
-    data = data.drop(data[data['date_added'].str.contains("months")].index)
-
-    data['date_added'] = (datetime.datetime.now() - data['date_added'].str.extract('(.*)\s+ago', expand=False).apply(
-        pd.Timedelta))
-    data['address'] = data['address'].str.replace("[", "").str.replace("]", "").str.replace("'", "")
-    data['address'] = data['address'].str.split(",")
-    data['address'] = data['address'].str[:2]
-    data['district'], data['street'] = data['address'].str
-    data = data.drop(columns="address")
-
-    return data
-
-
-
-
-
-
-
-
-
-
+        df = pd.DataFrame(result)
+        df = process_data(df)
+        return df
