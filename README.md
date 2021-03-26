@@ -29,7 +29,7 @@ aruodas_scraper.scrape_data(300, "vilniuje")
 - `beautifulsoup4 4.9.3`
 - `fake-useragent 0.1.11`
 - `pandas 1.2.3`
-- 
+
 For the full list of dependencies, please find *requirements.txt*
 
 ## License
