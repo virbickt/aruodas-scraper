@@ -5,7 +5,7 @@ from fake_useragent import UserAgent
 from bs4 import BeautifulSoup
 import requests
 
-from .utils import generate_urls, extract_data, process_data
+from . import utils
 
 
 class Scraper():
