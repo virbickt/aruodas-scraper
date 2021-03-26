@@ -1,7 +1,7 @@
 import requests
-from bs4 import BeautifulSoup
 import math
 from fake_useragent import UserAgent
+from bs4 import BeautifulSoup
 from datetime import datetime
 import pandas as pd
 
@@ -20,7 +20,8 @@ def find_maximum_page() -> int:  # will probably take query params as arguments
     pagination = soup.find("div", class_="pagination")
     page_arr = []
 
-    # Strip the whitespace and append to the list if the element is numeric for there might be characters such as "»" in the list
+    # Strip the whitespace and append to the list if the element is numeric for there might be
+    # characters such as "»" in the list
     for i in pagination.find_all("a", class_="page-bt"):
         page_number = i.text.strip()
         if page_number.isnumeric():
@@ -32,6 +33,7 @@ def find_maximum_page() -> int:  # will probably take query params as arguments
     # Find and return the largest element which represent the last page of the search results
     maximum_page = max(page_arr)
     return maximum_page
+
 
 def generate_urls(num_samples: int, max_price: int) -> list:
     """Generates urls for the search results given the parameter values for num_samples, city and max_price"""
@@ -61,14 +63,14 @@ def generate_urls(num_samples: int, max_price: int) -> list:
 
             else:
                 num_samples = 4000
-                num_pages = -(-self.__num_samples // 27)
+                num_pages = -(-num_samples // 27)
                 max_pages = 16
 
                 message = """You have requested to generate {num_samples} samples. In order to generate this number of samples,
                                       {num_pages} pages of search results would have to be scraped. However, there are only {max_pages} pages
                                       available given the criteria you selected. Please enter a number no larger than {max_samples} and 
                                       run the program again.
-                                      """.format(num_samples=self.__num_samples, num_pages=num_pages,
+                                      """.format(num_samples=num_samples, num_pages=num_pages,
                                                  max_pages=max_pages,
                                                  max_samples=max_pages * 27)
                 raise ValueError
@@ -76,16 +78,6 @@ def generate_urls(num_samples: int, max_price: int) -> list:
         err.args(message)
     return urls
 
-def collect_html(url: str) -> str:
-    """Sends the requests for the given urls and stores the responses"""
-    ua = UserAgent()
-    resp = requests.get(url, params={"FOrder": "AddDate", "FPriceMax": "400"}, headers={"User-Agent": ua.random})
-    return resp
-
-def make_soup(resp) -> str:
-    """Parses the received responses"""
-    soup = BeautifulSoup(resp.content, "html.parser")
-    return soup
     
 def extract_data(resp, results_list) -> list:  # Make sure that there is data within all the tags
     """Extracts data given the default categories: address (to be later processed into district and street separately)
@@ -93,22 +85,20 @@ def extract_data(resp, results_list) -> list:  # Make sure that there is data wi
     instead of the default relative date), number_of_rooms, area (in square meters) and floors
     (to be processed into separate categories for the floor the apartment is on and the total number of floors
     on the building)"""
-    soup = BeautifulSoup(resp.content, "html.parser")
-    return soup
     listings = soup.select("tr.list-row")
 
     for listing in listings:
-        listing_data = {}
-        listing_data["address"] = [a.img['title'] for a in listing.find_all("td", class_="list-img")]
-        listing_data["price"] = [x.text for x in listing.find_all("span", class_="list-item-price")]
-        listing_data["price_per_sm"] = [x.text.strip() for x in listing.find_all("span", class_="price-pm")]
-        listing_data["date_added"] = [x.text for x in listing.find_all("p", class_="flat-rent-dateadd")]
-        listing_data["number_of_rooms"] = [x.text.strip() for x in listing.find_all("td", class_="list-RoomNum")]
-        listing_data["area"] = [x.text.strip() for x in listing.find_all("td", class_="list-AreaOverall")]
-        listing_data["floors"] = [x.text.strip() for x in listing.find_all("td", class_="list-Floors")]
+        listing_data = {"address": [a.img['title'] for a in listing.find_all("td", class_="list-img")],
+                        "price": [x.text for x in listing.find_all("span", class_="list-item-price")],
+                        "price_per_sm": [x.text.strip() for x in listing.find_all("span", class_="price-pm")],
+                        "date_added": [x.text for x in listing.find_all("p", class_="flat-rent-dateadd")],
+                        "number_of_rooms": [x.text.strip() for x in listing.find_all("td", class_="list-RoomNum")],
+                        "area": [x.text.strip() for x in listing.find_all("td", class_="list-AreaOverall")],
+                        "floors": [x.text.strip() for x in listing.find_all("td", class_="list-Floors")]}
         results_list.append(listing_data)
 
     return results_list
+
 
 def process_data(dataframe: pd.DataFrame) -> pd.DataFrame:
     """Processes the extracted data so there's"""

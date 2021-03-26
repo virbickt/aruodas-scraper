@@ -1,8 +1,11 @@
 import pandas as pd
 from time import sleep
 from random import randint
+from fake_useragent import UserAgent
+from bs4 import BeautifulSoup
+import requests
 
-from aruodas_scraper.utils import generate_urls, collect_html, make_soup, extract_data, process_data
+from aruodas_scraper.utils import generate_urls, extract_data, process_data
 
 
 class Scraper():
@@ -43,11 +46,14 @@ class Scraper():
 
     def scrape_data(self, num_samples: int, keyword: str) -> pd.DataFrame:
         urls = generate_urls(self.__num_samples)
+        ua = UserAgent()
         result = []
 
         for url in urls:
-            resp = collect_html(url)
-            soup = make_soup(resp)
+            # Sends the requests for the given urls and stores the responses
+            resp = requests.get(url, params={"FOrder": "AddDate", "FPriceMax": "400"},
+                                headers={"User-Agent": ua.random})
+            soup = BeautifulSoup(resp.content, "html.parser")
             result = extract_data(soup, result)
             sleep(randint(1, 5))
 
